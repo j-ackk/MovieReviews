@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import {MongoClient } from 'mongodb';
+import mongoose from 'mongoose';
+import Infos from './infosModel.js';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import * as dotenv from 'dotenv' // see https://github.com/motdotla/dotenv#how-do-i-use-dotenv-with-import
@@ -15,7 +17,17 @@ const __dirname = path.dirname(__filename)
 console.log(__dirname);
 
 const app = express()
-const port = 8000
+const port = process.env.PORT || 8000;
+
+
+/**
+ * Add code to the backend to connect to MongoDB through mongoose
+ */
+
+mongoose.connect(process.env.MONGO_CONNECT)
+.then(() => console.log('Connected to MongoDB on Port ' + port))
+.catch(error => console.error('Error: failed to connect to MongoDB - ', error));
+
 //here is a change
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, '../build')));
@@ -38,11 +50,39 @@ console.log(movieData);
     {"title":"Die Hard"}
 ];*/
 
+
+/**
+ * Add a new route to the backend which uses the mongoose connection named /api/addInfo.
+ * This route will accept json data and save it to a collection named “Infos” using mongoose.
+ */
+
+app.use(bodyParser.json());
+
+app.post('/api/addInfo', async (req, res) => {
+  try {
+    console.log(req.body);
+    const { name, movie, email } = req.body;
+    if ( !name || !movie || !email ) {
+      /**
+       * Handle an error condition if the json data does not contain the correct fields. 
+       * In this case return a status code of 206.
+       */
+      return res.status(206).send('Missing required fields')
+    }
+    const infos = new Infos({ name, movie, email });
+    await infos.save();
+    res.send('Customer info saved');
+  } catch (error) {
+    console.error(error);
+    res.sendStatus(500).send('Internal server error')
+  }
+});
+
 app.get('/api/movies', async (req, res) => {
     
     //res.json(movieData)
     const client = new MongoClient(process.env.MONGO_CONNECT);
-    
+
     await client.connect();
 
     const db = client.db('movies');
@@ -121,3 +161,5 @@ const saveData = () => {
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 })
+
+export { app };
